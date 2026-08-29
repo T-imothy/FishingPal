@@ -2,7 +2,7 @@
 ## Title: FishingPal - Developed by Tim
 ## Notes: A modern fishing companion with easy cast, catch tracking, lure reminders, sound focus, and gear controls.
 ## Author: Developed by Tim
-## Version: 1.0.2-11402
+## Version: 1.0.3-11402
 ## SavedVariables: FishingPalDB
 
 FishingPal.lua
