@@ -1,7 +1,7 @@
 local addonName = ...
 
 local FishingPal = CreateFrame("Frame")
-local VERSION = "1.0.1-11402"
+local VERSION = "1.0.2-11402"
 local FISHING_SPELL_ID = 7620
 local DOUBLE_CLICK_WINDOW = 0.36
 local MINIMAP_BUTTON_RADIUS = 80
@@ -550,7 +550,7 @@ end
 
 local function CreateWatcher()
     watcher = CreateFrame("Frame", "FishingPalWatcher", UIParent, BACKDROP_TEMPLATE)
-    watcher:SetSize(340, 220)
+    watcher:SetSize(340, 252)
     watcher:SetFrameStrata("MEDIUM")
     watcher:SetClampedToScreen(true)
     watcher:SetMovable(true)
@@ -599,6 +599,13 @@ local function CreateWatcher()
         itemLine:SetJustifyH("LEFT")
         watcherItems[index] = itemLine
     end
+
+    local resetSessionButton = CreateFlatButton(watcher, "Reset Session", 124, 26)
+    resetSessionButton:SetPoint("BOTTOMRIGHT", -14, 12)
+    resetSessionButton:SetScript("OnClick", function()
+        ResetSession()
+        UpdateInterface()
+    end)
 
     watcher:SetScript("OnMouseUp", function(_, button)
         if button == "RightButton" then TogglePanel() end
@@ -752,24 +759,33 @@ end
 
 local function CreateMinimapButton()
     minimapButton = CreateFrame("Button", "FishingPalMinimapButton", Minimap, BACKDROP_TEMPLATE)
-    minimapButton:SetSize(34, 34)
+    minimapButton:SetSize(31, 31)
     minimapButton:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     minimapButton:RegisterForDrag("LeftButton")
     SetMinimapButtonAngle(db.positions.minimapAngle, false)
-    if minimapButton.SetBackdrop then
-        minimapButton:SetBackdrop({
-            bgFile = "Interface\\Buttons\\WHITE8X8",
-            edgeFile = "Interface\\Buttons\\WHITE8X8",
-            edgeSize = 1,
-        })
-        minimapButton:SetBackdropColor(0.02, 0.05, 0.08, 0.98)
-        minimapButton:SetBackdropBorderColor(0.08, 0.68, 0.92, 1)
-    end
+
+    local background = minimapButton:CreateTexture(nil, "BACKGROUND")
+    background:SetTexture("Interface\\Minimap\\UI-Minimap-Background")
+    background:SetSize(22, 22)
+    background:SetPoint("CENTER")
+
     local icon = minimapButton:CreateTexture(nil, "ARTWORK")
     icon:SetTexture("Interface\\Icons\\Trade_Fishing")
-    icon:SetPoint("TOPLEFT", 3, -3)
-    icon:SetPoint("BOTTOMRIGHT", -3, 3)
+    icon:SetSize(19, 19)
+    icon:SetPoint("CENTER")
     icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+
+    if minimapButton.CreateMaskTexture and icon.AddMaskTexture then
+        local mask = minimapButton:CreateMaskTexture()
+        mask:SetTexture("Interface\\CharacterFrame\\TempPortraitAlphaMask")
+        mask:SetAllPoints(icon)
+        icon:AddMaskTexture(mask)
+    end
+
+    local border = minimapButton:CreateTexture(nil, "OVERLAY")
+    border:SetTexture("Interface\\Minimap\\MiniMap-TrackingBorder")
+    border:SetSize(53, 53)
+    border:SetPoint("TOPLEFT")
 
     minimapButton:SetScript("OnClick", function(_, button)
         if minimapWasDragged then
@@ -784,7 +800,7 @@ local function CreateMinimapButton()
         end
     end)
     minimapButton:SetScript("OnEnter", function(self)
-        if self.SetBackdropColor then self:SetBackdropColor(0.07, 0.28, 0.39, 1) end
+        icon:SetVertexColor(0.65, 0.95, 1)
         GameTooltip:SetOwner(self, "ANCHOR_LEFT")
         GameTooltip:AddLine("FishingPal", 0.25, 0.85, 1)
         GameTooltip:AddLine("Developed by Tim", 0.75, 0.82, 0.90)
@@ -793,8 +809,8 @@ local function CreateMinimapButton()
         GameTooltip:AddLine("Right-click: toggle watcher", 1, 1, 1)
         GameTooltip:Show()
     end)
-    minimapButton:SetScript("OnLeave", function(self)
-        if self.SetBackdropColor then self:SetBackdropColor(0.02, 0.05, 0.08, 0.98) end
+    minimapButton:SetScript("OnLeave", function()
+        icon:SetVertexColor(1, 1, 1)
         GameTooltip:Hide()
     end)
     minimapButton:SetScript("OnDragStart", function()
