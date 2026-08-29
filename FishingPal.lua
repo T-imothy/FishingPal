@@ -1,7 +1,7 @@
 local addonName = ...
 
 local FishingPal = CreateFrame("Frame")
-local VERSION = "1.0.2-11402"
+local VERSION = "1.0.3-11402"
 local FISHING_SPELL_ID = 7620
 local DOUBLE_CLICK_WINDOW = 0.36
 local MINIMAP_BUTTON_RADIUS = 80
@@ -31,7 +31,7 @@ local defaults = {
 
 local db
 local initialized = false
-local panel, watcher, minimapButton
+local panel, watcher, minimapButton, easyCastSecureButton
 local panelStatus, panelStats
 local easyCastButton, watcherButton, lureButton, soundButton
 local watcherZone, watcherSummary, watcherLure
@@ -39,7 +39,7 @@ local watcherItems = {}
 local pendingGearSet
 local minimapDragging = false
 local minimapWasDragged = false
-local lastRightClick = 0
+local easyCastExpiresAt = 0
 local lastFishingCast = 0
 local lastRecordedCast = 0
 local lastLootHandled = 0
@@ -670,6 +670,7 @@ local function CreatePanel()
     easyCastButton:SetPoint("TOPLEFT", 24, -202)
     easyCastButton:SetScript("OnClick", function()
         db.options.easyCast = not db.options.easyCast
+        if not db.options.easyCast and easyCastSecureButton then easyCastSecureButton:Hide() end
         UpdateInterface()
     end)
 
@@ -832,23 +833,50 @@ end
 
 local function InstallEasyCast()
     if not WorldFrame or not WorldFrame.HookScript then return end
+
+    easyCastSecureButton = CreateFrame(
+        "Button",
+        "FishingPalSecureCastButton",
+        UIParent,
+        "SecureActionButtonTemplate"
+    )
+    easyCastSecureButton:SetSize(72, 72)
+    easyCastSecureButton:SetFrameStrata("TOOLTIP")
+    easyCastSecureButton:SetClampedToScreen(true)
+    easyCastSecureButton:EnableMouse(true)
+    easyCastSecureButton:RegisterForClicks("RightButtonDown")
+    easyCastSecureButton:SetAttribute("type2", "spell")
+    easyCastSecureButton:SetAttribute("spell2", GetFishingSpellName())
+    easyCastSecureButton:SetAttribute("useOnKeyDown", true)
+    easyCastSecureButton:Hide()
+    easyCastSecureButton:SetScript("PostClick", function(self)
+        easyCastExpiresAt = 0
+        self:Hide()
+    end)
+    easyCastSecureButton:SetScript("OnUpdate", function(self)
+        if easyCastExpiresAt > 0 and GetTime() >= easyCastExpiresAt then
+            easyCastExpiresAt = 0
+            self:Hide()
+        end
+    end)
+
     WorldFrame:HookScript("OnMouseDown", function(_, button)
         if not initialized or button ~= "RightButton" or not db.options.easyCast then return end
-        local now = GetTime()
-        if now - lastRightClick <= DOUBLE_CLICK_WINDOW then
-            lastRightClick = 0
-            if InCombatLockdown and InCombatLockdown() then return end
-            if SpellIsTargeting and SpellIsTargeting() then return end
-            if CursorHasItem and CursorHasItem() then return end
-            if not IsFishingPoleEquipped() then
-                Chat("Equip a fishing pole before using Easy Cast.")
-                return
-            end
-            local spellName = GetFishingSpellName()
-            if spellName and CastSpellByName then pcall(CastSpellByName, spellName) end
-        else
-            lastRightClick = now
+        if InCombatLockdown and InCombatLockdown() then return end
+        if SpellIsTargeting and SpellIsTargeting() then return end
+        if CursorHasItem and CursorHasItem() then return end
+        if not IsFishingPoleEquipped() then
+            Chat("Equip a fishing pole before using Easy Cast.")
+            return
         end
+
+        local cursorX, cursorY = GetCursorPosition()
+        local scale = (UIParent.GetEffectiveScale and UIParent:GetEffectiveScale()) or 1
+        cursorX, cursorY = cursorX / scale, cursorY / scale
+        easyCastSecureButton:ClearAllPoints()
+        easyCastSecureButton:SetPoint("CENTER", UIParent, "BOTTOMLEFT", cursorX, cursorY)
+        easyCastExpiresAt = GetTime() + DOUBLE_CLICK_WINDOW
+        easyCastSecureButton:Show()
     end)
 end
 
