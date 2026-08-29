@@ -14,6 +14,7 @@ FishingPal is an original fishing companion for World of Warcraft Classic Era 1.
 - Fishing-focused sound mode with automatic restoration
 - Save, equip, and restore a fishing gear set
 - Modern dark interface and minimap button
+- Draggable minimap button with a position saved between logins
 
 ## Commands
 
