@@ -1,9 +1,11 @@
 local addonName = ...
 
 local FishingPal = CreateFrame("Frame")
-local VERSION = "1.0.0-11402"
+local VERSION = "1.0.1-11402"
 local FISHING_SPELL_ID = 7620
 local DOUBLE_CLICK_WINDOW = 0.36
+local MINIMAP_BUTTON_RADIUS = 80
+local DEFAULT_MINIMAP_ANGLE = math.rad(225)
 local BACKDROP_TEMPLATE = BackdropTemplateMixin and "BackdropTemplate" or nil
 
 local defaults = {
@@ -35,6 +37,8 @@ local easyCastButton, watcherButton, lureButton, soundButton
 local watcherZone, watcherSummary, watcherLure
 local watcherItems = {}
 local pendingGearSet
+local minimapDragging = false
+local minimapWasDragged = false
 local lastRightClick = 0
 local lastFishingCast = 0
 local lastRecordedCast = 0
@@ -437,6 +441,41 @@ local function RestoreFramePosition(frame, key, defaultX, defaultY)
     frame:SetPoint("CENTER", UIParent, "CENTER", saved and saved.x or defaultX or 0, saved and saved.y or defaultY or 0)
 end
 
+local function SetMinimapButtonAngle(angle, save)
+    if not minimapButton then return end
+    angle = tonumber(angle) or DEFAULT_MINIMAP_ANGLE
+    minimapButton:ClearAllPoints()
+    minimapButton:SetPoint(
+        "CENTER",
+        Minimap,
+        "CENTER",
+        math.cos(angle) * MINIMAP_BUTTON_RADIUS,
+        math.sin(angle) * MINIMAP_BUTTON_RADIUS
+    )
+    if save then db.positions.minimapAngle = angle end
+end
+
+local function UpdateMinimapButtonFromCursor()
+    if not GetCursorPosition or not Minimap or not Minimap.GetCenter then return end
+    local cursorX, cursorY = GetCursorPosition()
+    local centerX, centerY = Minimap:GetCenter()
+    if not cursorX or not cursorY or not centerX or not centerY then return end
+
+    local scale = (UIParent.GetEffectiveScale and UIParent:GetEffectiveScale()) or 1
+    cursorX, cursorY = cursorX / scale, cursorY / scale
+    local deltaX, deltaY = cursorX - centerX, cursorY - centerY
+    if deltaX == 0 and deltaY == 0 then return end
+
+    local angle
+    if deltaX == 0 then
+        angle = deltaY > 0 and (math.pi / 2) or (-math.pi / 2)
+    else
+        angle = math.atan(deltaY / deltaX)
+        if deltaX < 0 then angle = angle + math.pi end
+    end
+    SetMinimapButtonAngle(angle, true)
+end
+
 local function UpdateInterface()
     if not initialized then return end
     local zoneKey = GetZoneKey()
@@ -714,8 +753,9 @@ end
 local function CreateMinimapButton()
     minimapButton = CreateFrame("Button", "FishingPalMinimapButton", Minimap, BACKDROP_TEMPLATE)
     minimapButton:SetSize(34, 34)
-    minimapButton:SetPoint("BOTTOMLEFT", Minimap, "BOTTOMLEFT", -4, -3)
     minimapButton:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    minimapButton:RegisterForDrag("LeftButton")
+    SetMinimapButtonAngle(db.positions.minimapAngle, false)
     if minimapButton.SetBackdrop then
         minimapButton:SetBackdrop({
             bgFile = "Interface\\Buttons\\WHITE8X8",
@@ -732,6 +772,10 @@ local function CreateMinimapButton()
     icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
 
     minimapButton:SetScript("OnClick", function(_, button)
+        if minimapWasDragged then
+            minimapWasDragged = false
+            return
+        end
         if button == "RightButton" then
             db.options.watcher = not db.options.watcher
             UpdateInterface()
@@ -745,12 +789,28 @@ local function CreateMinimapButton()
         GameTooltip:AddLine("FishingPal", 0.25, 0.85, 1)
         GameTooltip:AddLine("Developed by Tim", 0.75, 0.82, 0.90)
         GameTooltip:AddLine("Left-click: settings", 1, 1, 1)
+        GameTooltip:AddLine("Left-drag: move around minimap", 1, 1, 1)
         GameTooltip:AddLine("Right-click: toggle watcher", 1, 1, 1)
         GameTooltip:Show()
     end)
     minimapButton:SetScript("OnLeave", function(self)
         if self.SetBackdropColor then self:SetBackdropColor(0.02, 0.05, 0.08, 0.98) end
         GameTooltip:Hide()
+    end)
+    minimapButton:SetScript("OnDragStart", function()
+        minimapDragging = true
+        minimapWasDragged = true
+        UpdateMinimapButtonFromCursor()
+    end)
+    minimapButton:SetScript("OnDragStop", function()
+        UpdateMinimapButtonFromCursor()
+        minimapDragging = false
+        if C_Timer and C_Timer.After then
+            C_Timer.After(0, function() minimapWasDragged = false end)
+        end
+    end)
+    minimapButton:SetScript("OnUpdate", function()
+        if minimapDragging then UpdateMinimapButtonFromCursor() end
     end)
 end
 
