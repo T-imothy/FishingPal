@@ -1,7 +1,7 @@
 local addonName = ...
 
 local FishingPal = CreateFrame("Frame")
-local VERSION = "1.0.3-11402"
+local VERSION = "1.0.4-11402"
 local FISHING_SPELL_ID = 7620
 local DOUBLE_CLICK_WINDOW = 0.36
 local MINIMAP_BUTTON_RADIUS = 80
@@ -40,6 +40,7 @@ local pendingGearSet
 local minimapDragging = false
 local minimapWasDragged = false
 local easyCastExpiresAt = 0
+local easyCastPendingClickAt = 0
 local lastFishingCast = 0
 local lastRecordedCast = 0
 local lastLootHandled = 0
@@ -861,14 +862,36 @@ local function InstallEasyCast()
     end)
 
     WorldFrame:HookScript("OnMouseDown", function(_, button)
+        if button == "LeftButton" then
+            easyCastPendingClickAt = 0
+            return
+        end
         if not initialized or button ~= "RightButton" or not db.options.easyCast then return end
         if InCombatLockdown and InCombatLockdown() then return end
         if SpellIsTargeting and SpellIsTargeting() then return end
         if CursorHasItem and CursorHasItem() then return end
-        if not IsFishingPoleEquipped() then
-            Chat("Equip a fishing pole before using Easy Cast.")
+
+        -- Left+right mouse movement and ordinary camera control must never be
+        -- treated as an Easy Cast attempt.
+        if IsMouseButtonDown and IsMouseButtonDown("LeftButton") then
+            easyCastPendingClickAt = 0
             return
         end
+
+        if not IsFishingPoleEquipped() then
+            local now = GetTime()
+            if easyCastPendingClickAt > 0
+                and now - easyCastPendingClickAt <= DOUBLE_CLICK_WINDOW
+            then
+                easyCastPendingClickAt = 0
+                Chat("Equip a fishing pole before using Easy Cast.")
+            else
+                easyCastPendingClickAt = now
+            end
+            return
+        end
+
+        easyCastPendingClickAt = 0
 
         local cursorX, cursorY = GetCursorPosition()
         local scale = (UIParent.GetEffectiveScale and UIParent:GetEffectiveScale()) or 1

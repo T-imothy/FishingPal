@@ -11,6 +11,7 @@ FishingPal is an original fishing companion for World of Warcraft Classic Era 1.
 ## Features
 
 - Secure double-right-click Easy Cast while a fishing pole is equipped
+- Normal single right-clicks and left+right mouse movement are ignored
 - Session and lifetime cast/catch statistics
 - Per-zone and per-subzone catch tracking
 - Live draggable catch watcher
